@@ -32,6 +32,7 @@
   const outcomeFaultBtn = document.getElementById('outcomeFaultBtn');
   const clearCurrentDraftBtn = document.getElementById('clearCurrentDraftBtn');
   const undoBtn = document.getElementById('undoBtn');
+  const newGameBtn = document.getElementById('newGameBtn');
   const filterBtn = document.getElementById('filterBtn');
   const filterLabel = document.getElementById('filterLabel');
 
@@ -73,75 +74,37 @@
     onTrajectoryDraftChanged: (start, end) => handleDraftChanged(start, end)
   });
 
-  // Load persisted state or bootstrap with initial sample serves
+  // Load persisted state
   function init() {
     loadFromLocalStorage();
-    
-    // If state is completely empty, populate initial sample serves for player #7 so user sees it in action
-    if (state.serves.length === 0) {
-      seedSampleData();
-    }
 
     renderMatchInfo();
     renderPlayerRoster();
     renderServeTypeButtons();
     updateCourtDisplay();
     updatePredictions();
+    updateUndoState();
     attachEventListeners();
   }
 
-  function seedSampleData() {
-    state.serves = [
-      {
-        id: 's-1',
-        team: state.teamName,
-        opponent: state.opponentName,
-        player_number: '7',
-        serve_type: 'Jump Float',
-        outcome: 'In',
-        start_x: -1.2, start_y: 4.5,
-        end_x: 15.2, end_y: 7.2,
-        end_zone: 'Zone 5 (Back-Left)',
-        timestamp: new Date(Date.now() - 1000 * 60 * 15).toISOString()
-      },
-      {
-        id: 's-2',
-        team: state.teamName,
-        opponent: state.opponentName,
-        player_number: '7',
-        serve_type: 'Jump Float',
-        outcome: 'In',
-        start_x: -1.0, start_y: 4.8,
-        end_x: 16.1, end_y: 7.6,
-        end_zone: 'Zone 5 (Back-Left)',
-        timestamp: new Date(Date.now() - 1000 * 60 * 10).toISOString()
-      },
-      {
-        id: 's-3',
-        team: state.teamName,
-        opponent: state.opponentName,
-        player_number: '7',
-        serve_type: 'Jump Float',
-        outcome: 'Ace',
-        start_x: -1.5, start_y: 4.2,
-        end_x: 17.2, end_y: 8.2,
-        end_zone: 'Zone 5 (Back-Left)',
-        timestamp: new Date(Date.now() - 1000 * 60 * 5).toISOString()
-      },
-      {
-        id: 's-4',
-        team: state.teamName,
-        opponent: state.opponentName,
-        player_number: '7',
-        serve_type: 'Jump Float',
-        outcome: 'Fault',
-        start_x: -0.8, start_y: 5.0,
-        end_x: 18.6, end_y: 9.3,
-        end_zone: 'Out of Bounds',
-        timestamp: new Date(Date.now() - 1000 * 60 * 2).toISOString()
-      }
-    ];
+  function startNewGame() {
+    const confirmed = confirm(
+      'Start a new game? This clears all recorded serves for the current match.\n\nExport CSV first if you want to keep this data.'
+    );
+    if (!confirmed) return;
+
+    state.serves = [];
+    state.draftStart = null;
+    state.draftEnd = null;
+    court.clearDraft();
     saveToLocalStorage();
+
+    renderPlayerRoster();
+    updateCourtDisplay();
+    updatePredictions();
+    updateUndoState();
+
+    setupModal.classList.add('open');
   }
 
   function handleDraftChanged(start, end) {
@@ -445,6 +408,7 @@
 
     clearCurrentDraftBtn.addEventListener('click', () => court.clearDraft());
     undoBtn.addEventListener('click', () => undoLastServe());
+    newGameBtn.addEventListener('click', () => startNewGame());
     filterBtn.addEventListener('click', () => toggleFilter());
 
     exportCsvBtn.addEventListener('click', () => exportToCsv());
