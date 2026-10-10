@@ -81,6 +81,12 @@
   const numpadClearBtn = document.getElementById('numpadClearBtn');
   const numpadAddBtn = document.getElementById('numpadAddBtn');
 
+  // Fun 3D trajectory viewer (separate rendering, does not affect the 2D court)
+  const open3DBtn = document.getElementById('open3DBtn');
+  const close3DModalBtn = document.getElementById('close3DModalBtn');
+  const view3DModal = document.getElementById('view3DModal');
+  let court3D = null;
+
   function renderSetupRosterUI() {
     modalSelectedPlayers.sort((a, b) => parseInt(a, 10) - parseInt(b, 10));
 
@@ -274,12 +280,35 @@
     updateUndoState();
   }
 
-  function updateCourtDisplay() {
-    let filteredServes = state.serves;
+  function getFilteredServes() {
     if (state.filterMode === 'player') {
-      filteredServes = state.serves.filter(s => String(s.player_number) === String(state.selectedPlayer));
+      return state.serves.filter(s => String(s.player_number) === String(state.selectedPlayer));
     }
+    return state.serves;
+  }
+
+  function updateCourtDisplay() {
+    const filteredServes = getFilteredServes();
     court.setTrajectories(filteredServes);
+
+    if (court3D && view3DModal.classList.contains('open')) {
+      court3D.setTrajectories(filteredServes);
+    }
+  }
+
+  function open3DView() {
+    if (!court3D) {
+      court3D = new Court3DView('court3DCanvas');
+    }
+    view3DModal.classList.add('open');
+    // Canvas was hidden (display:none) until now, so re-measure its size
+    // now that the modal is actually laid out.
+    court3D.initCanvasSize();
+    court3D.setTrajectories(getFilteredServes());
+  }
+
+  function close3DView() {
+    view3DModal.classList.remove('open');
   }
 
   function updatePredictions() {
@@ -562,6 +591,29 @@
       setupModal.addEventListener('click', (e) => {
         if (e.target === setupModal) {
           closeModal();
+        }
+      });
+    }
+
+    // Fun 3D Trajectory Viewer
+    if (open3DBtn) {
+      open3DBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        open3DView();
+      });
+    }
+
+    if (close3DModalBtn) {
+      close3DModalBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        close3DView();
+      });
+    }
+
+    if (view3DModal) {
+      view3DModal.addEventListener('click', (e) => {
+        if (e.target === view3DModal) {
+          close3DView();
         }
       });
     }

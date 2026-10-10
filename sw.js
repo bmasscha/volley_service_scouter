@@ -1,9 +1,10 @@
-const CACHE_NAME = 'volley-scout-v4';
+const CACHE_NAME = 'volley-scout-v5';
 const ASSETS_TO_CACHE = [
   './',
   './index.html',
   './css/style.css',
   './js/court.js',
+  './js/court3d.js',
   './js/predictor.js',
   './js/app.js',
   './manifest.json',
