@@ -169,7 +169,9 @@ class Court3DView {
 
     const scale = this.focal / cz;
     return {
-      x: this.canvas.width / 2 + cx * scale,
+      // Negated: matches the 2D court canvas's left/right sense (y=0 side
+      // stays on the same visual side in both views).
+      x: this.canvas.width / 2 - cx * scale,
       y: this.canvas.height / 2 - cy * scale,
       depth: cz
     };
