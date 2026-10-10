@@ -38,10 +38,18 @@ class Court3DView {
 
     this.minPhi = 8 * Math.PI / 180;
     this.maxPhi = 72 * Math.PI / 180;
+    this.minRadius = 6;
+    this.maxRadius = 34;
 
     this.dragging = false;
     this.lastX = 0;
     this.lastY = 0;
+
+    // Active pointers for drag-to-rotate (1 finger/mouse) and
+    // pinch-to-zoom (2 fingers) support.
+    this.activePointers = new Map();
+    this.pinchStartDist = null;
+    this.pinchStartRadius = null;
 
     this.initCanvasSize();
     this.setupEvents();
@@ -61,31 +69,72 @@ class Court3DView {
     window.addEventListener('resize', () => this.initCanvasSize());
 
     this.canvas.addEventListener('pointerdown', (e) => {
-      this.dragging = true;
       this.canvas.setPointerCapture(e.pointerId);
-      this.lastX = e.clientX;
-      this.lastY = e.clientY;
-      this.canvas.style.cursor = 'grabbing';
+      this.activePointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+
+      if (this.activePointers.size === 1) {
+        this.dragging = true;
+        this.lastX = e.clientX;
+        this.lastY = e.clientY;
+        this.canvas.style.cursor = 'grabbing';
+      } else if (this.activePointers.size === 2) {
+        this.dragging = false;
+        this.pinchStartDist = this.currentPinchDist();
+        this.pinchStartRadius = this.radius;
+      }
     });
 
     this.canvas.addEventListener('pointermove', (e) => {
-      if (!this.dragging) return;
-      const dx = e.clientX - this.lastX;
-      const dy = e.clientY - this.lastY;
-      this.lastX = e.clientX;
-      this.lastY = e.clientY;
+      if (!this.activePointers.has(e.pointerId)) return;
+      this.activePointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
 
-      this.theta -= dx * 0.008;
-      this.phi = Math.min(this.maxPhi, Math.max(this.minPhi, this.phi + dy * 0.006));
-      this.render();
+      if (this.activePointers.size === 2 && this.pinchStartDist) {
+        const dist = this.currentPinchDist();
+        const scale = this.pinchStartDist / Math.max(dist, 1);
+        this.radius = this.clampRadius(this.pinchStartRadius * scale);
+        this.render();
+        return;
+      }
+
+      if (this.dragging && this.activePointers.size === 1) {
+        const dx = e.clientX - this.lastX;
+        const dy = e.clientY - this.lastY;
+        this.lastX = e.clientX;
+        this.lastY = e.clientY;
+
+        this.theta -= dx * 0.008;
+        this.phi = Math.min(this.maxPhi, Math.max(this.minPhi, this.phi + dy * 0.006));
+        this.render();
+      }
     });
 
-    const endDrag = () => {
-      this.dragging = false;
-      this.canvas.style.cursor = 'grab';
+    const endPointer = (e) => {
+      this.activePointers.delete(e.pointerId);
+      this.pinchStartDist = null;
+      if (this.activePointers.size === 0) {
+        this.dragging = false;
+        this.canvas.style.cursor = 'grab';
+      }
     };
-    this.canvas.addEventListener('pointerup', endDrag);
-    this.canvas.addEventListener('pointercancel', endDrag);
+    this.canvas.addEventListener('pointerup', endPointer);
+    this.canvas.addEventListener('pointercancel', endPointer);
+
+    // Mouse wheel / trackpad zoom
+    this.canvas.addEventListener('wheel', (e) => {
+      e.preventDefault();
+      this.radius = this.clampRadius(this.radius + e.deltaY * 0.015);
+      this.render();
+    }, { passive: false });
+  }
+
+  currentPinchDist() {
+    const pts = [...this.activePointers.values()];
+    if (pts.length < 2) return 0;
+    return Math.hypot(pts[0].x - pts[1].x, pts[0].y - pts[1].y);
+  }
+
+  clampRadius(r) {
+    return Math.min(this.maxRadius, Math.max(this.minRadius, r));
   }
 
   setTrajectories(serves) {
