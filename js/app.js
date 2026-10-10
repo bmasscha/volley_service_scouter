@@ -39,6 +39,10 @@
   const importCsvBtn = document.getElementById('importCsvBtn');
   const csvFileInput = document.getElementById('csvFileInput');
 
+  const toggleFullscreenBtn = document.getElementById('toggleFullscreenBtn');
+  const installAppBtn = document.getElementById('installAppBtn');
+  let deferredPrompt = null;
+
   const togglePredictionOverlay = document.getElementById('togglePredictionOverlay');
   const toggleZonesOverlay = document.getElementById('toggleZonesOverlay');
 
@@ -488,6 +492,63 @@
       updatePredictions();
       closeModal();
     });
+
+    // Fullscreen Toggle
+    if (toggleFullscreenBtn) {
+      toggleFullscreenBtn.addEventListener('click', () => {
+        if (!document.fullscreenElement) {
+          document.documentElement.requestFullscreen().catch(err => {
+            console.warn('Fullscreen request failed:', err);
+          });
+          toggleFullscreenBtn.innerHTML = '<span class="btn-icon">🗗</span> Exit Full';
+        } else {
+          if (document.exitFullscreen) {
+            document.exitFullscreen();
+          }
+          toggleFullscreenBtn.innerHTML = '<span class="btn-icon">⛶</span> Fullscreen';
+        }
+      });
+
+      document.addEventListener('fullscreenchange', () => {
+        if (!document.fullscreenElement) {
+          toggleFullscreenBtn.innerHTML = '<span class="btn-icon">⛶</span> Fullscreen';
+        } else {
+          toggleFullscreenBtn.innerHTML = '<span class="btn-icon">🗗</span> Exit Full';
+        }
+      });
+    }
+
+    // PWA Install Prompt Handler
+    window.addEventListener('beforeinstallprompt', (e) => {
+      e.preventDefault();
+      deferredPrompt = e;
+      if (installAppBtn) {
+        installAppBtn.style.display = 'inline-flex';
+      }
+    });
+
+    if (installAppBtn) {
+      installAppBtn.addEventListener('click', async () => {
+        if (!deferredPrompt) return;
+        deferredPrompt.prompt();
+        const { outcome } = await deferredPrompt.userChoice;
+        if (outcome === 'accepted') {
+          installAppBtn.style.display = 'none';
+        }
+        deferredPrompt = null;
+      });
+    }
+
+    window.addEventListener('appinstalled', () => {
+      if (installAppBtn) installAppBtn.style.display = 'none';
+    });
+
+    // Register Service Worker for offline PWA installation
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.register('./sw.js').catch(err => {
+        console.warn('ServiceWorker registration error:', err);
+      });
+    }
   }
 
   // Initialize on DOM ready
