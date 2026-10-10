@@ -134,16 +134,30 @@
   }
 
   function openModal() {
-    modalSelectedPlayers = [...state.players];
-    if (teamNameInput) teamNameInput.value = state.teamName || '';
-    if (oppNameInput) oppNameInput.value = state.opponentName || '';
+    const modalEl = document.getElementById('setupModal');
+    const teamInput = document.getElementById('teamNameInput');
+    const oppInput = document.getElementById('oppNameInput');
+
+    modalSelectedPlayers = Array.isArray(state.players) && state.players.length > 0
+      ? [...state.players]
+      : ['1', '3', '4', '7', '9', '11', '14', '18'];
+
+    if (teamInput) teamInput.value = state.teamName || '';
+    if (oppInput) oppInput.value = state.opponentName || '';
     numpadBuffer = '';
+    
     renderSetupRosterUI();
-    setupModal.classList.add('open');
+
+    if (modalEl) {
+      modalEl.classList.add('open');
+    }
   }
 
   function closeModal() {
-    setupModal.classList.remove('open');
+    const modalEl = document.getElementById('setupModal');
+    if (modalEl) {
+      modalEl.classList.remove('open');
+    }
   }
 
   // Initialize Court Canvas
@@ -305,7 +319,6 @@
     displayOpponentName.textContent = state.opponentName;
     teamNameInput.value = state.teamName;
     oppNameInput.value = state.opponentName;
-    playerNumbersInput.value = state.players.join(', ');
   }
 
   function renderPlayerRoster() {
@@ -516,10 +529,42 @@
     });
 
     // Modal Events
-    openSetupBtn.addEventListener('click', openModal);
-    document.getElementById('matchDisplayPill').addEventListener('click', openModal);
-    closeSetupModalBtn.addEventListener('click', closeModal);
-    cancelSetupBtn.addEventListener('click', closeModal);
+    if (openSetupBtn) {
+      openSetupBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        openModal();
+      });
+    }
+
+    const matchPillEl = document.getElementById('matchDisplayPill');
+    if (matchPillEl) {
+      matchPillEl.addEventListener('click', (e) => {
+        e.stopPropagation();
+        openModal();
+      });
+    }
+
+    if (closeSetupModalBtn) {
+      closeSetupModalBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        closeModal();
+      });
+    }
+
+    if (cancelSetupBtn) {
+      cancelSetupBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        closeModal();
+      });
+    }
+
+    if (setupModal) {
+      setupModal.addEventListener('click', (e) => {
+        if (e.target === setupModal) {
+          closeModal();
+        }
+      });
+    }
 
     if (presetRoster12Btn) {
       presetRoster12Btn.addEventListener('click', () => {

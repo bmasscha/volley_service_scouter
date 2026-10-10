@@ -427,13 +427,11 @@ html, body {
   font-family: var(--font-mono);
 }
 
-/* Player Roster Grid */
+/* Player Roster Grid (up to 14 players, always visible, no scrolling) */
 .player-roster-grid {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  grid-template-columns: repeat(7, 1fr);
   gap: 6px;
-  max-height: 110px;
-  overflow-y: auto;
 }
 
 .player-chip {
@@ -701,11 +699,13 @@ html, body {
   display: none;
   align-items: center;
   justify-content: center;
-  z-index: 100;
+  z-index: 9999;
 }
 
 .modal-overlay.open {
-  display: flex;
+  display: flex !important;
+  visibility: visible !important;
+  opacity: 1 !important;
 }
 
 .modal-card {
