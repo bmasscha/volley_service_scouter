@@ -389,8 +389,8 @@ html, body {
 .sidebar-panel {
   display: flex;
   flex-direction: column;
-  gap: 10px;
-  padding: 12px 14px;
+  gap: 8px;
+  padding: 10px 14px;
   overflow-y: auto;
   background: #0d1527;
 }
@@ -399,10 +399,10 @@ html, body {
   background: var(--bg-card);
   border: 1px solid var(--border-subtle);
   border-radius: var(--radius-md);
-  padding: 10px 12px;
+  padding: 8px 12px;
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 6px;
   box-shadow: var(--shadow-card);
 }
 
@@ -430,7 +430,7 @@ html, body {
 /* Player Roster Grid (up to 14 players, always visible, no scrolling) */
 .player-roster-grid {
   display: grid;
-  grid-template-columns: repeat(7, 1fr);
+  grid-template-columns: repeat(5, 1fr);
   gap: 6px;
 }
 
