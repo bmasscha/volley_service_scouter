@@ -65,7 +65,86 @@
   const saveSetupBtn = document.getElementById('saveSetupBtn');
   const teamNameInput = document.getElementById('teamNameInput');
   const oppNameInput = document.getElementById('oppNameInput');
-  const playerNumbersInput = document.getElementById('playerNumbersInput');
+
+  // Touch Roster Setup Modal State & UI Elements
+  let modalSelectedPlayers = [];
+  let numpadBuffer = '';
+
+  const setupSelectedCountBadge = document.getElementById('setupSelectedCountBadge');
+  const setupSelectedChips = document.getElementById('setupSelectedChips');
+  const presetRoster12Btn = document.getElementById('presetRoster12Btn');
+  const presetRoster18Btn = document.getElementById('presetRoster18Btn');
+  const presetClearBtn = document.getElementById('presetClearBtn');
+  const setupNumberToggleGrid = document.getElementById('setupNumberToggleGrid');
+  const numpadDisplay = document.getElementById('numpadDisplay');
+  const numpadGrid = document.getElementById('numpadGrid');
+  const numpadClearBtn = document.getElementById('numpadClearBtn');
+  const numpadAddBtn = document.getElementById('numpadAddBtn');
+
+  function renderSetupRosterUI() {
+    modalSelectedPlayers.sort((a, b) => parseInt(a, 10) - parseInt(b, 10));
+
+    if (setupSelectedCountBadge) {
+      setupSelectedCountBadge.textContent = `${modalSelectedPlayers.length} Selected`;
+    }
+
+    if (setupSelectedChips) {
+      setupSelectedChips.innerHTML = '';
+      if (modalSelectedPlayers.length === 0) {
+        setupSelectedChips.innerHTML = `<span style="font-size: 0.8rem; color: #64748b; font-style: italic;">No players selected. Tap numbers below to add.</span>`;
+      } else {
+        modalSelectedPlayers.forEach(num => {
+          const chip = document.createElement('span');
+          chip.className = 'setup-chip';
+          chip.innerHTML = `#${num} <button type="button" class="setup-chip-remove" aria-label="Remove player ${num}">&times;</button>`;
+          chip.querySelector('.setup-chip-remove').addEventListener('click', () => {
+            modalSelectedPlayers = modalSelectedPlayers.filter(p => p !== num);
+            renderSetupRosterUI();
+          });
+          setupSelectedChips.appendChild(chip);
+        });
+      }
+    }
+
+    if (setupNumberToggleGrid) {
+      setupNumberToggleGrid.innerHTML = '';
+      for (let i = 1; i <= 24; i++) {
+        const numStr = i.toString();
+        const isSelected = modalSelectedPlayers.includes(numStr);
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = `jersey-toggle-btn ${isSelected ? 'selected' : ''}`;
+        btn.textContent = numStr;
+        btn.title = `Toggle player #${numStr}`;
+        btn.addEventListener('click', () => {
+          if (modalSelectedPlayers.includes(numStr)) {
+            modalSelectedPlayers = modalSelectedPlayers.filter(p => p !== numStr);
+          } else {
+            modalSelectedPlayers.push(numStr);
+          }
+          renderSetupRosterUI();
+        });
+        setupNumberToggleGrid.appendChild(btn);
+      }
+    }
+
+    if (numpadDisplay) {
+      numpadDisplay.textContent = numpadBuffer ? `Typed: #${numpadBuffer}` : 'Typed: --';
+    }
+  }
+
+  function openModal() {
+    modalSelectedPlayers = [...state.players];
+    if (teamNameInput) teamNameInput.value = state.teamName || '';
+    if (oppNameInput) oppNameInput.value = state.opponentName || '';
+    numpadBuffer = '';
+    renderSetupRosterUI();
+    setupModal.classList.add('open');
+  }
+
+  function closeModal() {
+    setupModal.classList.remove('open');
+  }
 
   // Initialize Court Canvas
   const court = new VolleyballCourt('courtCanvas', {
@@ -123,6 +202,19 @@
       setOutcomeButtonsEnabled(false);
     } else if (start && end) {
       const zone = VolleyballCourt.getOpponentZoneName(end.x, end.y);
+
+      if (zone === 'Own Half (Net)' || zone === 'Out of Bounds') {
+        // A serve that lands in the server's own court or outside the
+        // field can never be an Ace or an In/Rally - it's always a Fault.
+        recordServe('Fault');
+        const reason = zone === 'Out of Bounds' ? 'landed out of bounds' : 'landed in own court / net';
+        courtHintText.textContent = `🚫 Auto-recorded as FAULT (${reason}).`;
+        draftStatusIndicator.textContent = 'Auto-recorded: FAULT';
+        draftStatusIndicator.className = 'draft-indicator';
+        setOutcomeButtonsEnabled(false);
+        return;
+      }
+
       courtHintText.textContent = `✅ Landed in ${zone}. Tap ACE, IN, or FAULT below!`;
       draftStatusIndicator.textContent = `Ready: ${zone}`;
       draftStatusIndicator.className = 'draft-indicator ready';
@@ -424,26 +516,74 @@
     });
 
     // Modal Events
-    const openModal = () => setupModal.classList.add('open');
-    const closeModal = () => setupModal.classList.remove('open');
-
     openSetupBtn.addEventListener('click', openModal);
     document.getElementById('matchDisplayPill').addEventListener('click', openModal);
     closeSetupModalBtn.addEventListener('click', closeModal);
     cancelSetupBtn.addEventListener('click', closeModal);
 
+    if (presetRoster12Btn) {
+      presetRoster12Btn.addEventListener('click', () => {
+        modalSelectedPlayers = Array.from({ length: 12 }, (_, i) => (i + 1).toString());
+        renderSetupRosterUI();
+      });
+    }
+
+    if (presetRoster18Btn) {
+      presetRoster18Btn.addEventListener('click', () => {
+        modalSelectedPlayers = Array.from({ length: 18 }, (_, i) => (i + 1).toString());
+        renderSetupRosterUI();
+      });
+    }
+
+    if (presetClearBtn) {
+      presetClearBtn.addEventListener('click', () => {
+        modalSelectedPlayers = [];
+        renderSetupRosterUI();
+      });
+    }
+
+    if (numpadGrid) {
+      numpadGrid.querySelectorAll('.numpad-btn[data-val]').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const val = btn.getAttribute('data-val');
+          if (numpadBuffer.length < 2) {
+            numpadBuffer += val;
+            renderSetupRosterUI();
+          }
+        });
+      });
+    }
+
+    if (numpadClearBtn) {
+      numpadClearBtn.addEventListener('click', () => {
+        numpadBuffer = numpadBuffer.slice(0, -1);
+        renderSetupRosterUI();
+      });
+    }
+
+    if (numpadAddBtn) {
+      numpadAddBtn.addEventListener('click', () => {
+        const numVal = parseInt(numpadBuffer, 10);
+        if (!isNaN(numVal) && numVal > 0 && numVal <= 99) {
+          const numStr = numVal.toString();
+          if (!modalSelectedPlayers.includes(numStr)) {
+            modalSelectedPlayers.push(numStr);
+          }
+          numpadBuffer = '';
+          renderSetupRosterUI();
+        }
+      });
+    }
+
     saveSetupBtn.addEventListener('click', () => {
       const newTeam = teamNameInput.value.trim();
       const newOpp = oppNameInput.value.trim();
-      const rawPlayers = playerNumbersInput.value
-        .split(',')
-        .map(p => p.trim())
-        .filter(p => p.length > 0);
 
       if (newTeam) state.teamName = newTeam;
       if (newOpp) state.opponentName = newOpp;
-      if (rawPlayers.length > 0) {
-        state.players = rawPlayers;
+
+      if (modalSelectedPlayers.length > 0) {
+        state.players = [...modalSelectedPlayers];
         if (!state.players.includes(state.selectedPlayer)) {
           state.selectedPlayer = state.players[0];
         }
