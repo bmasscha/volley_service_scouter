@@ -1,4 +1,4 @@
-const CACHE_NAME = 'volley-scout-v2';
+const CACHE_NAME = 'volley-scout-v3';
 const ASSETS_TO_CACHE = [
   './',
   './index.html',
@@ -7,8 +7,10 @@ const ASSETS_TO_CACHE = [
   './js/predictor.js',
   './js/app.js',
   './manifest.json',
+  './assets/favicon.png',
   './assets/icon-192.png',
   './assets/icon-512.png',
+  './assets/app-icon.png',
   './assets/icon.svg'
 ];
 
