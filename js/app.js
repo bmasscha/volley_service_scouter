@@ -1,0 +1,495 @@
+/**
+ * Main Application Controller for Volleyball Service Scout
+ */
+
+(function () {
+  // Application State
+  const state = {
+    teamName: 'Team Phoenix',
+    opponentName: 'Thunder Spikers',
+    players: ['1', '3', '4', '7', '9', '11', '14', '18'],
+    selectedPlayer: '7',
+    selectedServeType: 'Jump Float',
+    serves: [],
+    filterMode: 'player', // 'player' | 'all'
+    draftStart: null,
+    draftEnd: null
+  };
+
+  const STORAGE_KEY = 'vball_scout_match_state_v1';
+
+  // DOM Elements
+  const displayTeamName = document.getElementById('displayTeamName');
+  const displayOpponentName = document.getElementById('displayOpponentName');
+  const playerRosterGrid = document.getElementById('playerRosterGrid');
+  const playerServeCountBadge = document.getElementById('playerServeCountBadge');
+  const serveTypeGrid = document.getElementById('serveTypeGrid');
+  const draftStatusIndicator = document.getElementById('draftStatusIndicator');
+  const courtHintText = document.getElementById('courtHintText');
+  
+  const outcomeAceBtn = document.getElementById('outcomeAceBtn');
+  const outcomeInBtn = document.getElementById('outcomeInBtn');
+  const outcomeFaultBtn = document.getElementById('outcomeFaultBtn');
+  const clearCurrentDraftBtn = document.getElementById('clearCurrentDraftBtn');
+  const undoBtn = document.getElementById('undoBtn');
+  const filterBtn = document.getElementById('filterBtn');
+  const filterLabel = document.getElementById('filterLabel');
+
+  const exportCsvBtn = document.getElementById('exportCsvBtn');
+  const importCsvBtn = document.getElementById('importCsvBtn');
+  const csvFileInput = document.getElementById('csvFileInput');
+
+  const togglePredictionOverlay = document.getElementById('togglePredictionOverlay');
+  const toggleZonesOverlay = document.getElementById('toggleZonesOverlay');
+
+  // Prediction elements
+  const predConfidenceBadge = document.getElementById('predictionConfidenceBadge');
+  const predAceVal = document.getElementById('predAceVal');
+  const predAceFill = document.getElementById('predAceFill');
+  const predInVal = document.getElementById('predInVal');
+  const predInFill = document.getElementById('predInFill');
+  const predFaultVal = document.getElementById('predFaultVal');
+  const predFaultFill = document.getElementById('predFaultFill');
+  const predTendencyText = document.getElementById('predTendencyText');
+
+  // Modal elements
+  const setupModal = document.getElementById('setupModal');
+  const openSetupBtn = document.getElementById('openSetupBtn');
+  const closeSetupModalBtn = document.getElementById('closeSetupModalBtn');
+  const cancelSetupBtn = document.getElementById('cancelSetupBtn');
+  const saveSetupBtn = document.getElementById('saveSetupBtn');
+  const teamNameInput = document.getElementById('teamNameInput');
+  const oppNameInput = document.getElementById('oppNameInput');
+  const playerNumbersInput = document.getElementById('playerNumbersInput');
+
+  // Initialize Court Canvas
+  const court = new VolleyballCourt('courtCanvas', {
+    showZones: true,
+    showPrediction: true,
+    onTrajectoryDraftChanged: (start, end) => handleDraftChanged(start, end)
+  });
+
+  // Load persisted state or bootstrap with initial sample serves
+  function init() {
+    loadFromLocalStorage();
+    
+    // If state is completely empty, populate initial sample serves for player #7 so user sees it in action
+    if (state.serves.length === 0) {
+      seedSampleData();
+    }
+
+    renderMatchInfo();
+    renderPlayerRoster();
+    renderServeTypeButtons();
+    updateCourtDisplay();
+    updatePredictions();
+    attachEventListeners();
+  }
+
+  function seedSampleData() {
+    state.serves = [
+      {
+        id: 's-1',
+        team: state.teamName,
+        opponent: state.opponentName,
+        player_number: '7',
+        serve_type: 'Jump Float',
+        outcome: 'In',
+        start_x: -1.2, start_y: 4.5,
+        end_x: 15.2, end_y: 7.2,
+        end_zone: 'Zone 5 (Back-Left)',
+        timestamp: new Date(Date.now() - 1000 * 60 * 15).toISOString()
+      },
+      {
+        id: 's-2',
+        team: state.teamName,
+        opponent: state.opponentName,
+        player_number: '7',
+        serve_type: 'Jump Float',
+        outcome: 'In',
+        start_x: -1.0, start_y: 4.8,
+        end_x: 16.1, end_y: 7.6,
+        end_zone: 'Zone 5 (Back-Left)',
+        timestamp: new Date(Date.now() - 1000 * 60 * 10).toISOString()
+      },
+      {
+        id: 's-3',
+        team: state.teamName,
+        opponent: state.opponentName,
+        player_number: '7',
+        serve_type: 'Jump Float',
+        outcome: 'Ace',
+        start_x: -1.5, start_y: 4.2,
+        end_x: 17.2, end_y: 8.2,
+        end_zone: 'Zone 5 (Back-Left)',
+        timestamp: new Date(Date.now() - 1000 * 60 * 5).toISOString()
+      },
+      {
+        id: 's-4',
+        team: state.teamName,
+        opponent: state.opponentName,
+        player_number: '7',
+        serve_type: 'Jump Float',
+        outcome: 'Fault',
+        start_x: -0.8, start_y: 5.0,
+        end_x: 18.6, end_y: 9.3,
+        end_zone: 'Out of Bounds',
+        timestamp: new Date(Date.now() - 1000 * 60 * 2).toISOString()
+      }
+    ];
+    saveToLocalStorage();
+  }
+
+  function handleDraftChanged(start, end) {
+    state.draftStart = start;
+    state.draftEnd = end;
+
+    if (!start) {
+      courtHintText.textContent = '👉 Tap behind baseline to set serve start point';
+      draftStatusIndicator.textContent = 'Waiting for trajectory...';
+      draftStatusIndicator.className = 'draft-indicator';
+      setOutcomeButtonsEnabled(false);
+    } else if (start && !end) {
+      courtHintText.textContent = '🎯 Tap opponent court to set landing point';
+      draftStatusIndicator.textContent = 'Start set. Tap landing point...';
+      draftStatusIndicator.className = 'draft-indicator';
+      setOutcomeButtonsEnabled(false);
+    } else if (start && end) {
+      const zone = VolleyballCourt.getOpponentZoneName(end.x, end.y);
+      courtHintText.textContent = `✅ Landed in ${zone}. Tap ACE, IN, or FAULT below!`;
+      draftStatusIndicator.textContent = `Ready: ${zone}`;
+      draftStatusIndicator.className = 'draft-indicator ready';
+      setOutcomeButtonsEnabled(true);
+    }
+  }
+
+  function setOutcomeButtonsEnabled(enabled) {
+    outcomeAceBtn.disabled = !enabled;
+    outcomeInBtn.disabled = !enabled;
+    outcomeFaultBtn.disabled = !enabled;
+  }
+
+  function recordServe(outcome) {
+    if (!state.draftStart || !state.draftEnd) return;
+
+    const endZone = VolleyballCourt.getOpponentZoneName(state.draftEnd.x, state.draftEnd.y);
+    const newServe = {
+      id: 'srv_' + Date.now(),
+      team: state.teamName,
+      opponent: state.opponentName,
+      player_number: state.selectedPlayer,
+      serve_type: state.selectedServeType,
+      outcome: outcome, // 'Ace' | 'In' | 'Fault'
+      start_x: Number(state.draftStart.x.toFixed(2)),
+      start_y: Number(state.draftStart.y.toFixed(2)),
+      end_x: Number(state.draftEnd.x.toFixed(2)),
+      end_y: Number(state.draftEnd.y.toFixed(2)),
+      end_zone: endZone,
+      timestamp: new Date().toISOString()
+    };
+
+    state.serves.push(newServe);
+    saveToLocalStorage();
+
+    // Clear draft
+    court.clearDraft();
+    
+    // Update displays
+    updateCourtDisplay();
+    updatePredictions();
+    renderPlayerRoster();
+    updateUndoState();
+  }
+
+  function updateCourtDisplay() {
+    let filteredServes = state.serves;
+    if (state.filterMode === 'player') {
+      filteredServes = state.serves.filter(s => String(s.player_number) === String(state.selectedPlayer));
+    }
+    court.setTrajectories(filteredServes);
+  }
+
+  function updatePredictions() {
+    // 1. Outcome probabilities
+    const probData = ServePredictor.predictOutcome(state.serves, state.selectedPlayer, state.selectedServeType);
+    
+    predConfidenceBadge.textContent = probData.confidence;
+    predConfidenceBadge.className = probData.sampleSize >= 3 ? 'badge active' : 'badge';
+
+    predAceVal.textContent = `${probData.probAce}%`;
+    predAceFill.style.width = `${probData.probAce}%`;
+
+    predInVal.textContent = `${probData.probIn}%`;
+    predInFill.style.width = `${probData.probIn}%`;
+
+    predFaultVal.textContent = `${probData.probFault}%`;
+    predFaultFill.style.width = `${probData.probFault}%`;
+
+    // 2. Trajectory vector & landing cluster
+    const trajPred = ServePredictor.predictTrajectory(state.serves, state.selectedPlayer, state.selectedServeType);
+    
+    if (trajPred) {
+      court.setPredictedTrajectory(trajPred);
+      predTendencyText.textContent = `${probData.notes} Predicted target: ${trajPred.zone}.`;
+    } else {
+      court.setPredictedTrajectory(null);
+      predTendencyText.textContent = probData.notes || 'No trajectory data yet for this player.';
+    }
+
+    // Update serve count badge
+    const countForPlayer = state.serves.filter(s => String(s.player_number) === String(state.selectedPlayer)).length;
+    playerServeCountBadge.textContent = `${countForPlayer} serve${countForPlayer === 1 ? '' : 's'}`;
+  }
+
+  function renderMatchInfo() {
+    displayTeamName.textContent = state.teamName;
+    displayOpponentName.textContent = state.opponentName;
+    teamNameInput.value = state.teamName;
+    oppNameInput.value = state.opponentName;
+    playerNumbersInput.value = state.players.join(', ');
+  }
+
+  function renderPlayerRoster() {
+    playerRosterGrid.innerHTML = '';
+    state.players.forEach(num => {
+      const btn = document.createElement('button');
+      btn.className = `player-chip ${num === state.selectedPlayer ? 'active' : ''}`;
+      
+      const count = state.serves.filter(s => String(s.player_number) === String(num)).length;
+      btn.innerHTML = `
+        <span>#${num}</span>
+        <span style="font-size: 0.65rem; opacity: 0.7; font-weight: 500;">${count}</span>
+      `;
+
+      btn.addEventListener('click', () => {
+        state.selectedPlayer = num;
+        renderPlayerRoster();
+        updateCourtDisplay();
+        updatePredictions();
+      });
+
+      playerRosterGrid.appendChild(btn);
+    });
+  }
+
+  function renderServeTypeButtons() {
+    const buttons = serveTypeGrid.querySelectorAll('.serve-type-btn');
+    buttons.forEach(btn => {
+      const type = btn.getAttribute('data-type');
+      btn.classList.toggle('active', type === state.selectedServeType);
+
+      btn.addEventListener('click', () => {
+        state.selectedServeType = type;
+        renderServeTypeButtons();
+        updatePredictions();
+      });
+    });
+  }
+
+  function updateUndoState() {
+    undoBtn.disabled = state.serves.length === 0;
+  }
+
+  function undoLastServe() {
+    if (state.serves.length === 0) return;
+    const removed = state.serves.pop();
+    saveToLocalStorage();
+    updateCourtDisplay();
+    updatePredictions();
+    renderPlayerRoster();
+    updateUndoState();
+  }
+
+  // CSV Export
+  function exportToCsv() {
+    if (state.serves.length === 0) {
+      alert('No serves recorded yet to export.');
+      return;
+    }
+
+    const headers = [
+      'id', 'game_team', 'opponent', 'player_number', 'serve_type',
+      'outcome', 'start_x_m', 'start_y_m', 'end_x_m', 'end_y_m',
+      'end_zone', 'timestamp'
+    ];
+
+    const rows = state.serves.map(s => [
+      s.id,
+      `"${s.team}"`,
+      `"${s.opponent}"`,
+      s.player_number,
+      `"${s.serve_type}"`,
+      `"${s.outcome}"`,
+      s.start_x,
+      s.start_y,
+      s.end_x,
+      s.end_y,
+      `"${s.end_zone || ''}"`,
+      `"${s.timestamp}"`
+    ]);
+
+    const csvContent = [headers.join(','), ...rows.map(r => r.join(','))].join('\r\n');
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    
+    const dateStr = new Date().toISOString().slice(0, 10);
+    const safeTeam = state.teamName.replace(/[^a-zA-Z0-9_-]/g, '_');
+    const filename = `volleyball_scout_${safeTeam}_${dateStr}.csv`;
+
+    const downloadLink = document.createElement('a');
+    downloadLink.href = url;
+    downloadLink.setAttribute('download', filename);
+    document.body.appendChild(downloadLink);
+    downloadLink.click();
+    document.body.removeChild(downloadLink);
+    URL.revokeObjectURL(url);
+  }
+
+  // CSV Import
+  function importFromCsv(e) {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = function(evt) {
+      try {
+        const text = evt.target.result;
+        const lines = text.split(/\r?\n/).filter(l => l.trim().length > 0);
+        if (lines.length < 2) return;
+
+        const importedServes = [];
+        for (let i = 1; i < lines.length; i++) {
+          const cols = lines[i].split(',').map(c => c.replace(/^"|"$/g, '').trim());
+          if (cols.length >= 10) {
+            importedServes.push({
+              id: cols[0] || 's_' + Date.now() + '_' + i,
+              team: cols[1] || state.teamName,
+              opponent: cols[2] || state.opponentName,
+              player_number: cols[3],
+              serve_type: cols[4],
+              outcome: cols[5],
+              start_x: parseFloat(cols[6]),
+              start_y: parseFloat(cols[7]),
+              end_x: parseFloat(cols[8]),
+              end_y: parseFloat(cols[9]),
+              end_zone: cols[10] || '',
+              timestamp: cols[11] || new Date().toISOString()
+            });
+          }
+        }
+
+        if (importedServes.length > 0) {
+          state.serves = importedServes;
+          saveToLocalStorage();
+          renderPlayerRoster();
+          updateCourtDisplay();
+          updatePredictions();
+          updateUndoState();
+          alert(`Successfully imported ${importedServes.length} serves!`);
+        }
+      } catch (err) {
+        alert('Could not parse CSV file. Please verify format.');
+      }
+    };
+    reader.readAsText(file);
+    e.target.value = '';
+  }
+
+  function toggleFilter() {
+    if (state.filterMode === 'player') {
+      state.filterMode = 'all';
+      filterLabel.textContent = 'All Players';
+    } else {
+      state.filterMode = 'player';
+      filterLabel.textContent = 'Current Player';
+    }
+    updateCourtDisplay();
+  }
+
+  function saveToLocalStorage() {
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify({
+        teamName: state.teamName,
+        opponentName: state.opponentName,
+        players: state.players,
+        serves: state.serves
+      }));
+    } catch (e) {
+      console.warn('LocalStorage error:', e);
+    }
+  }
+
+  function loadFromLocalStorage() {
+    try {
+      const data = localStorage.getItem(STORAGE_KEY);
+      if (data) {
+        const parsed = JSON.parse(data);
+        if (parsed.teamName) state.teamName = parsed.teamName;
+        if (parsed.opponentName) state.opponentName = parsed.opponentName;
+        if (Array.isArray(parsed.players) && parsed.players.length > 0) state.players = parsed.players;
+        if (Array.isArray(parsed.serves)) state.serves = parsed.serves;
+      }
+    } catch (e) {
+      console.warn('LocalStorage error:', e);
+    }
+  }
+
+  function attachEventListeners() {
+    outcomeAceBtn.addEventListener('click', () => recordServe('Ace'));
+    outcomeInBtn.addEventListener('click', () => recordServe('In'));
+    outcomeFaultBtn.addEventListener('click', () => recordServe('Fault'));
+
+    clearCurrentDraftBtn.addEventListener('click', () => court.clearDraft());
+    undoBtn.addEventListener('click', () => undoLastServe());
+    filterBtn.addEventListener('click', () => toggleFilter());
+
+    exportCsvBtn.addEventListener('click', () => exportToCsv());
+    importCsvBtn.addEventListener('click', () => csvFileInput.click());
+    csvFileInput.addEventListener('change', importFromCsv);
+
+    togglePredictionOverlay.addEventListener('change', (e) => {
+      court.setShowPrediction(e.target.checked);
+    });
+
+    toggleZonesOverlay.addEventListener('change', (e) => {
+      court.setShowZones(e.target.checked);
+    });
+
+    // Modal Events
+    const openModal = () => setupModal.classList.add('open');
+    const closeModal = () => setupModal.classList.remove('open');
+
+    openSetupBtn.addEventListener('click', openModal);
+    document.getElementById('matchDisplayPill').addEventListener('click', openModal);
+    closeSetupModalBtn.addEventListener('click', closeModal);
+    cancelSetupBtn.addEventListener('click', closeModal);
+
+    saveSetupBtn.addEventListener('click', () => {
+      const newTeam = teamNameInput.value.trim();
+      const newOpp = oppNameInput.value.trim();
+      const rawPlayers = playerNumbersInput.value
+        .split(',')
+        .map(p => p.trim())
+        .filter(p => p.length > 0);
+
+      if (newTeam) state.teamName = newTeam;
+      if (newOpp) state.opponentName = newOpp;
+      if (rawPlayers.length > 0) {
+        state.players = rawPlayers;
+        if (!state.players.includes(state.selectedPlayer)) {
+          state.selectedPlayer = state.players[0];
+        }
+      }
+
+      saveToLocalStorage();
+      renderMatchInfo();
+      renderPlayerRoster();
+      updateCourtDisplay();
+      updatePredictions();
+      closeModal();
+    });
+  }
+
+  // Initialize on DOM ready
+  document.addEventListener('DOMContentLoaded', init);
+})();

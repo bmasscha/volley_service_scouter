@@ -1,0 +1,241 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <meta name="theme-color" content="#0f172a">
+  <meta name="description" content="Simple Volleyball Service Scouting App - Mobile & Tablet Landscape Scouting with Trajectory Drawing and Predictions">
+  <title>Volleyball Service Scout</title>
+  
+  <!-- Modern Google Font -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
+  
+  <link rel="manifest" href="manifest.json">
+  <link rel="icon" type="image/svg+xml" href="assets/icon.svg">
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <div id="app" class="app-container">
+    <!-- Top Navigation / Match Bar -->
+    <header class="top-nav">
+      <div class="match-info-group">
+        <div class="brand">
+          <span class="brand-icon">🏐</span>
+          <span class="brand-name">VOLLEY SCOUT</span>
+        </div>
+        <div class="match-pill" id="matchDisplayPill" title="Click to edit match settings">
+          <span class="match-team" id="displayTeamName">Team Phoenix</span>
+          <span class="match-vs">vs</span>
+          <span class="match-opp" id="displayOpponentName">Opponent</span>
+          <button class="icon-btn-subtle" id="openSetupBtn" title="Edit match & players" aria-label="Edit match and players">⚙️</button>
+        </div>
+      </div>
+
+      <div class="nav-actions">
+        <button class="nav-btn" id="undoBtn" title="Undo last serve" disabled>
+          <span class="btn-icon">↩</span> Undo
+        </button>
+        <button class="nav-btn" id="filterBtn" title="Toggle trajectory display filters">
+          <span class="btn-icon">👁️</span> Show: <span id="filterLabel">Current Player</span>
+        </button>
+        <button class="nav-btn primary" id="exportCsvBtn" title="Export scouting data to CSV">
+          <span class="btn-icon">📥</span> Export CSV
+        </button>
+        <button class="nav-btn subtle" id="importCsvBtn" title="Load existing CSV">
+          <span class="btn-icon">📂</span> Load CSV
+        </button>
+        <input type="file" id="csvFileInput" accept=".csv" style="display: none;">
+      </div>
+    </header>
+
+    <!-- Main Workspace (Landscape Tablet Split: Court on Left, Scouting Controls on Right) -->
+    <main class="workspace-layout">
+      <!-- Court Canvas Area -->
+      <section class="court-section">
+        <div class="court-toolbar">
+          <div class="toolbar-left">
+            <span class="badge serve-direction-badge">
+              <span>SERVING ➡️</span>
+            </span>
+            <div class="court-hint" id="courtHintText">
+              👉 Tap behind baseline to set serve start point
+            </div>
+          </div>
+          <div class="toolbar-right">
+            <label class="toggle-control">
+              <input type="checkbox" id="togglePredictionOverlay" checked>
+              <span class="toggle-track"></span>
+              <span class="toggle-text">Show Prediction</span>
+            </label>
+            <label class="toggle-control">
+              <input type="checkbox" id="toggleZonesOverlay" checked>
+              <span class="toggle-track"></span>
+              <span class="toggle-text">Court Zones</span>
+            </label>
+            <button class="icon-btn-subtle" id="clearCurrentDraftBtn" title="Reset current serve drawing">✖ Clear</button>
+          </div>
+        </div>
+
+        <div class="court-canvas-wrapper" id="courtCanvasWrapper">
+          <canvas id="courtCanvas"></canvas>
+          <div id="touchFeedbackMarker" class="touch-marker"></div>
+        </div>
+
+        <div class="court-legend">
+          <span class="legend-item"><span class="legend-color legend-green"></span> Ace (Green)</span>
+          <span class="legend-item"><span class="legend-color legend-blue"></span> In / Rally (Blue)</span>
+          <span class="legend-item"><span class="legend-color legend-red"></span> Fault (Red)</span>
+          <span class="legend-item"><span class="legend-color legend-purple"></span> Next Prediction (Dashed)</span>
+        </div>
+      </section>
+
+      <!-- Sidebar Scouting Panel -->
+      <aside class="sidebar-panel">
+        <!-- Active Player Bar -->
+        <div class="panel-card">
+          <div class="card-header">
+            <span class="card-title">SERVER (SELECT PLAYER)</span>
+            <span class="serve-counter" id="playerServeCountBadge">0 serves</span>
+          </div>
+          <div class="player-roster-grid" id="playerRosterGrid">
+            <!-- Dynamically populated roster numbers -->
+          </div>
+        </div>
+
+        <!-- Serve Type Selector -->
+        <div class="panel-card">
+          <div class="card-header">
+            <span class="card-title">SERVE TYPE</span>
+          </div>
+          <div class="serve-type-grid" id="serveTypeGrid">
+            <button class="serve-type-btn active" data-type="Jump Float">
+              <span class="type-icon">⚡</span>
+              <span class="type-name">Jump Float</span>
+            </button>
+            <button class="serve-type-btn" data-type="Float">
+              <span class="type-icon">💨</span>
+              <span class="type-name">Float</span>
+            </button>
+            <button class="serve-type-btn" data-type="Jump Topspin">
+              <span class="type-icon">🚀</span>
+              <span class="type-name">Jump Topspin</span>
+            </button>
+            <button class="serve-type-btn" data-type="Topspin">
+              <span class="type-icon">🌀</span>
+              <span class="type-name">Topspin</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- Outcome Action Buttons -->
+        <div class="panel-card outcome-card">
+          <div class="card-header">
+            <span class="card-title">CONFIRM OUTCOME</span>
+            <span class="draft-indicator" id="draftStatusIndicator">Waiting for trajectory...</span>
+          </div>
+          <div class="outcome-actions-grid">
+            <button class="outcome-btn ace-btn" id="outcomeAceBtn" data-outcome="Ace" disabled>
+              <span class="outcome-icon">🟢</span>
+              <span class="outcome-label">ACE</span>
+              <span class="outcome-sub">Point scored</span>
+            </button>
+            <button class="outcome-btn in-btn" id="outcomeInBtn" data-outcome="In" disabled>
+              <span class="outcome-icon">🔵</span>
+              <span class="outcome-label">IN</span>
+              <span class="outcome-sub">Rally / Received</span>
+            </button>
+            <button class="outcome-btn fault-btn" id="outcomeFaultBtn" data-outcome="Fault" disabled>
+              <span class="outcome-icon">🔴</span>
+              <span class="outcome-label">FAULT</span>
+              <span class="outcome-sub">Net or Out</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- Live Prediction & Analytics Card -->
+        <div class="panel-card prediction-card">
+          <div class="card-header">
+            <span class="card-title">NEXT SERVE PREDICTION</span>
+            <span class="badge" id="predictionConfidenceBadge">Low Data</span>
+          </div>
+          
+          <div class="prediction-body" id="predictionBody">
+            <div class="prob-bars-container">
+              <div class="prob-row">
+                <div class="prob-header">
+                  <span class="prob-name">Ace Probability</span>
+                  <span class="prob-val" id="predAceVal">0%</span>
+                </div>
+                <div class="prob-track">
+                  <div class="prob-fill fill-ace" id="predAceFill" style="width: 0%;"></div>
+                </div>
+              </div>
+
+              <div class="prob-row">
+                <div class="prob-header">
+                  <span class="prob-name">In & Rally Probability</span>
+                  <span class="prob-val" id="predInVal">0%</span>
+                </div>
+                <div class="prob-track">
+                  <div class="prob-fill fill-in" id="predInFill" style="width: 0%;"></div>
+                </div>
+              </div>
+
+              <div class="prob-row">
+                <div class="prob-header">
+                  <span class="prob-name">Fault Probability</span>
+                  <span class="prob-val" id="predFaultVal">0%</span>
+                </div>
+                <div class="prob-track">
+                  <div class="prob-fill fill-fault" id="predFaultFill" style="width: 0%;"></div>
+                </div>
+              </div>
+            </div>
+
+            <div class="prediction-notes" id="predictionNotes">
+              <span class="ai-spark">✨</span>
+              <span id="predTendencyText">Select a player with at least 1 recorded serve to see predicted landing zone and tendencies.</span>
+            </div>
+          </div>
+        </div>
+      </aside>
+    </main>
+
+    <!-- Pre-Game / Team Setup Modal Dialog -->
+    <div class="modal-overlay" id="setupModal">
+      <div class="modal-card">
+        <div class="modal-header">
+          <h2>🏐 Pre-Game Match Setup</h2>
+          <button class="icon-btn-close" id="closeSetupModalBtn">&times;</button>
+        </div>
+        <div class="modal-body">
+          <div class="form-group">
+            <label for="teamNameInput">Your Team Name</label>
+            <input type="text" id="teamNameInput" placeholder="e.g. Dragons Volley" value="Dragons Volley">
+          </div>
+          <div class="form-group">
+            <label for="oppNameInput">Opponent Team Name</label>
+            <input type="text" id="oppNameInput" placeholder="e.g. Thunder Spikers" value="Thunder Spikers">
+          </div>
+          <div class="form-group">
+            <label for="playerNumbersInput">Player Jersey Numbers (comma separated)</label>
+            <input type="text" id="playerNumbersInput" placeholder="e.g. 1, 3, 4, 7, 9, 11, 14, 18" value="1, 3, 4, 7, 9, 11, 14, 18">
+            <small class="helper-text">You can change or add numbers at any time during the match.</small>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button class="nav-btn" id="cancelSetupBtn">Cancel</button>
+          <button class="nav-btn primary" id="saveSetupBtn">Save & Start Scouting</button>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <script src="js/court.js"></script>
+  <script src="js/predictor.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>
