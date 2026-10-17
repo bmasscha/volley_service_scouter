@@ -13,7 +13,8 @@
     serves: [],
     filterMode: 'player', // 'player' | 'all'
     draftStart: null,
-    draftEnd: null
+    draftEnd: null,
+    courtFlipped: false // view only: service zone drawn on the right
   };
 
   const STORAGE_KEY = 'vball_scout_match_state_v1';
@@ -46,6 +47,8 @@
 
   const togglePredictionOverlay = document.getElementById('togglePredictionOverlay');
   const toggleZonesOverlay = document.getElementById('toggleZonesOverlay');
+  const toggleFlipCourt = document.getElementById('toggleFlipCourt');
+  const serveDirectionText = document.getElementById('serveDirectionText');
 
   // Prediction elements
   const predConfidenceBadge = document.getElementById('predictionConfidenceBadge');
@@ -170,6 +173,7 @@
   const court = new VolleyballCourt('courtCanvas', {
     showZones: true,
     showPrediction: true,
+    flipped: false,
     onTrajectoryDraftChanged: (start, end) => handleDraftChanged(start, end)
   });
 
@@ -177,6 +181,7 @@
   function init() {
     loadFromLocalStorage();
 
+    applyCourtFlip();
     renderMatchInfo();
     renderPlayerRoster();
     renderServeTypeButtons();
@@ -513,7 +518,8 @@
         teamName: state.teamName,
         opponentName: state.opponentName,
         players: state.players,
-        serves: state.serves
+        serves: state.serves,
+        courtFlipped: state.courtFlipped
       }));
     } catch (e) {
       console.warn('LocalStorage error:', e);
@@ -529,10 +535,17 @@
         if (parsed.opponentName) state.opponentName = parsed.opponentName;
         if (Array.isArray(parsed.players) && parsed.players.length > 0) state.players = parsed.players;
         if (Array.isArray(parsed.serves)) state.serves = parsed.serves;
+        state.courtFlipped = parsed.courtFlipped === true;
       }
     } catch (e) {
       console.warn('LocalStorage error:', e);
     }
+  }
+
+  function applyCourtFlip() {
+    toggleFlipCourt.checked = state.courtFlipped;
+    serveDirectionText.textContent = state.courtFlipped ? '⬅️ SERVING' : 'SERVING ➡️';
+    court.setFlipped(state.courtFlipped);
   }
 
   function attachEventListeners() {
@@ -555,6 +568,12 @@
 
     toggleZonesOverlay.addEventListener('change', (e) => {
       court.setShowZones(e.target.checked);
+    });
+
+    toggleFlipCourt.addEventListener('change', (e) => {
+      state.courtFlipped = e.target.checked;
+      applyCourtFlip();
+      saveToLocalStorage();
     });
 
     // Modal Events

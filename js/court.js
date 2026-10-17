@@ -11,6 +11,7 @@ class VolleyballCourt {
     this.options = Object.assign({
       showZones: true,
       showPrediction: true,
+      flipped: false, // display rotated 180° (service zone on the right), data stays canonical
       onTrajectoryDraftChanged: null
     }, options);
 
@@ -46,6 +47,12 @@ class VolleyballCourt {
 
   // Convert real court meters (x, y) to canvas pixels
   metersToPixels(mx, my) {
+    // Flipped view = looking at the court from the opposite sideline (180° rotation),
+    // so stored coordinates never change; only the on-screen mapping does.
+    if (this.options.flipped) {
+      mx = this.courtLength - mx;
+      my = this.courtWidth - my;
+    }
     const rect = this.canvas.getBoundingClientRect();
     const scaleX = (rect.width * this.dpr) / (this.maxX - this.minX);
     const scaleY = (rect.height * this.dpr) / (this.maxY - this.minY);
@@ -75,6 +82,9 @@ class VolleyballCourt {
 
     const mx = this.minX + (px - offsetX) / scale;
     const my = this.minY + (py - offsetY) / scale;
+    if (this.options.flipped) {
+      return { x: this.courtLength - mx, y: this.courtWidth - my };
+    }
     return { x: mx, y: my };
   }
 
@@ -178,6 +188,11 @@ class VolleyballCourt {
 
   setShowPrediction(show) {
     this.options.showPrediction = show;
+    this.render();
+  }
+
+  setFlipped(flipped) {
+    this.options.flipped = flipped;
     this.render();
   }
 
@@ -355,7 +370,7 @@ class VolleyballCourt {
     const sPos = this.metersToPixels(-1.8, 4.5);
     ctx.save();
     ctx.translate(sPos.px, sPos.py);
-    ctx.rotate(-Math.PI / 2);
+    ctx.rotate(this.options.flipped ? Math.PI / 2 : -Math.PI / 2);
     ctx.fillStyle = 'rgba(255, 255, 255, 0.6)';
     ctx.font = `700 ${fontPx * 0.9}px Outfit, sans-serif`;
     ctx.fillText('SERVICE ZONE', 0, 0);

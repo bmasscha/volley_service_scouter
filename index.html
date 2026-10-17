@@ -68,7 +68,7 @@
         <div class="court-toolbar">
           <div class="toolbar-left">
             <span class="badge serve-direction-badge">
-              <span>SERVING ➡️</span>
+              <span id="serveDirectionText">SERVING ➡️</span>
             </span>
             <div class="court-hint" id="courtHintText">
               👉 Tap behind baseline to set serve start point
@@ -84,6 +84,11 @@
               <input type="checkbox" id="toggleZonesOverlay" checked>
               <span class="toggle-track"></span>
               <span class="toggle-text">Court Zones</span>
+            </label>
+            <label class="toggle-control" title="Service zone on the right, as seen from the other sideline">
+              <input type="checkbox" id="toggleFlipCourt">
+              <span class="toggle-track"></span>
+              <span class="toggle-text">Flip Court</span>
             </label>
             <button class="icon-btn-subtle" id="clearCurrentDraftBtn" title="Reset current serve drawing">✖ Clear</button>
             <button class="icon-btn-subtle" id="open3DBtn" title="Fun 3D view of recorded serve trajectories">🧊 3D View</button>

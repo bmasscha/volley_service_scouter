@@ -1,4 +1,4 @@
-const CACHE_NAME = 'volley-scout-v7';
+const CACHE_NAME = 'volley-scout-v8';
 const ASSETS_TO_CACHE = [
   './',
   './index.html',
